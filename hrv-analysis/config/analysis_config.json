@@ -1,0 +1,9 @@
+{
+  "preprocessing":
+  {
+    "low_pass": 5,
+    "high_pass": 25,
+    "display_limit": 15,
+    "plot": "True"
+  }
+}

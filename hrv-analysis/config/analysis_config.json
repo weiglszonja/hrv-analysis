@@ -4,6 +4,19 @@
     "low_pass": 5,
     "high_pass": 25,
     "display_limit": 15,
-    "plot": "True"
+    "plot": "False"
+  },
+  "peak_detection":
+  {
+    "plot": "False",
+    "qrs_period": 0.12,
+    "refractory_period": 1.2
+  },
+  "feature_extraction":
+  {
+    "plot": "False",
+    "vlf_band": [0.003, 0.04],
+    "lf_band": [0.04, 0.15],
+    "hf_band": [0.15, 0.40]
   }
 }

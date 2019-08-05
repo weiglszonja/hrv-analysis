@@ -8,3 +8,8 @@ Clone and install project requirements
 $ git clone git@github.com:weiglszonja/hrv-analysis.git
 $ pip install -r requirements.txt
 ```
+
+## Run analysis
+```bash
+$ python run_analysis.py
+```

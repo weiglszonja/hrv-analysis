@@ -146,8 +146,10 @@ class PeakDetection:
      vol. BME-32, no. 3, pp. 230-236, March 1985. doi: 10.1109/TBME.1985.325532
     '''
 
-    def __init__(self, data, fs):
+    def __init__(self, data, fs, filtered_data):
         self.fs = fs
+        self.epoch_length = 30
+        self.filtered_data = filtered_data
         self.rr = self._detect_peaks(data)
 
     @staticmethod
@@ -159,7 +161,8 @@ class PeakDetection:
         qrs_period = config['qrs_period'] * self.fs
         refractory_period = config['refractory_period'] * self.fs
 
-        data = data[self.fs: (self.fs * 5 * 60)]
+        data = data[0: (self.fs * 5 * 60)]
+        self.peaks = []
         rr = []
 
         def _batch(iterable, batch_length=1):
@@ -168,13 +171,34 @@ class PeakDetection:
             for ndx in range(0, ln, batch_length):
                 yield np.asarray([e for e in iterable[ndx:min(ndx + batch_length, ln)]])
 
-        def _get_rr_intervals_in_ms(rr_peak_indices, rr_min, rr_max):
-            rr_intervals = np.diff(rr_peak_indices)
-            rr_intervals = [(rri * 1000) / self.fs for rri in rr_intervals]
-            rr_intervals = np.asarray(rr_intervals)
-            return rr_intervals[(rr_intervals > rr_min) * (rr_intervals < rr_max)]
+        def _filter_irregular_rr_peaks(rr_peaks, rr_min, rr_max):
+            nn_intervals = []
+            nn_peaks = []
 
-        epoch_length = int(self.fs * 30)
+            rr_batches = [rr_peaks[i:min(i + 8, len(rr_peaks))] for i in range(0, len(rr_peaks), 8)]
+            if len(rr_batches[-1]) == 1:
+                try:
+                    rr_batches[-2].extend(rr_batches[-1])
+                    rr_batches.remove(rr_batches[-1])
+                except Exception:
+                    raise
+
+            for rr_buffer in rr_batches:
+                rr_intervals = np.diff(rr_buffer)
+                # convert to ms
+                rr_intervals = [(rri * 1000) / self.fs for rri in rr_intervals]
+
+                average_rr = np.mean(rr_intervals)
+
+                if rr_min < average_rr < rr_max:
+                    rr_min = 0.66 * np.mean(rr_intervals)
+                    rr_max = 1.16 * np.mean(rr_intervals)
+                    nn_intervals.extend(rr_intervals)
+                    nn_peaks.extend(rr_buffer)
+
+            return nn_peaks, nn_intervals
+
+        epoch_length = int(self.fs * self.epoch_length)
         epoch_num = 0
         for epoch in _batch(data, epoch_length):
             epoch_num += 1
@@ -206,17 +230,36 @@ class PeakDetection:
 
                     last_peak = epoch_peaks[-1]
 
-                epoch_rr_intervals = _get_rr_intervals_in_ms(rr_peak_indices=epoch_peaks, rr_min=400.0, rr_max=1400.0)
-
-                rr.extend(epoch_rr_intervals)
+                if len(epoch_peaks) > 1:
+                    epoch_nn_peaks, epoch_nn_intervals = _filter_irregular_rr_peaks(rr_peaks=epoch_peaks,
+                                                                                    rr_min=600.0,
+                                                                                    rr_max=1200.0)
+                    self.peaks.append(epoch_nn_peaks)
+                    rr.extend(epoch_nn_intervals)
 
             else:
                 logging.info(f'No peak candidates were found in epoch {epoch_num}!')
 
             if eval(config['plot']):
-                plt.figure()
+                plt.figure(figsize=(14, 6), dpi=80, facecolor='w', edgecolor='k')
                 plt.plot(normalized_epoch)
-                plt.plot(epoch_peaks, normalized_epoch[epoch_peaks], '*')
+                plt.plot(epoch_nn_peaks, normalized_epoch[epoch_nn_peaks], '*', markersize=12)
+                plt.xticks(np.arange(0, len(normalized_epoch), self.fs * 2))
+                plt.title('Detected peaks on preprocessed signal', fontsize=16)
+                plt.xlabel('Time (data samples)')
+                plt.ylabel('Normalized value')
+                plt.show()
+
+                plt.figure(figsize=(14, 6), dpi=80, facecolor='w', edgecolor='k')
+                filt = - self.filtered_data[0: epoch_length]
+                normalized_filt = (filt - min(filt)) / (max(filt) - min(filt))
+                plt.plot(normalized_filt)
+                plt.plot(epoch_nn_peaks, normalized_epoch[epoch_nn_peaks], '*', markersize=12)
+
+                plt.xticks(np.arange(0, len(normalized_epoch), self.fs * 2))
+                plt.xlabel('Time (data samples)')
+                plt.ylabel('Normalized value')
+                plt.title('Detected peaks on original signal', fontsize=16)
                 plt.show()
 
         logging.info(f'Average RR interval in data: {np.mean(rr)} ms')

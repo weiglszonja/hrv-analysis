@@ -4,15 +4,24 @@ from datetime import datetime
 from utils.preprocessing import SignalPreprocessing, PeakDetection
 from utils.feature_extraction import TimeDomainMetrics, FrequencyDomainMetrics
 
-source_path = os.getenv('SOURCE')
-target_path = os.getenv('TARGET')
-
-subjects = os.listdir(source_path)
 headers = ['asrt_1_1', 'asrt_1_2', 'asrt_1_3', 'asrt_1_4',
            'asrt_1_5', 'asrt_2', 'asrt_3_1', 'asrt_3_2']
 
 
+def initialize():
+    if 'SOURCE' not in os.environ:
+        os.environ['SOURCE'] = 'data/'
+    if 'TARGET' not in os.environ:
+        os.environ['TARGET'] = 'results/'
+
+
 def main():
+    initialize()
+
+    source_path = os.getenv('SOURCE')
+    target_path = os.getenv('TARGET')
+    subjects = os.listdir(source_path)
+
     subjects_data = pd.DataFrame()
     for subject in subjects:
         for header in headers:

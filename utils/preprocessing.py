@@ -4,6 +4,7 @@ import mne
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
+from matplotlib import pylab
 from scipy.signal import butter, filtfilt, freqz
 from scipy.signal import find_peaks
 
@@ -12,7 +13,15 @@ logging.getLogger().setLevel(logging.INFO)
 
 mne.set_log_level('ERROR')
 
-CONFIG = os.path.join('config/analysis_config.json')
+CONFIG = os.path.join('utils/config/analysis_config.json')
+
+params = {'legend.fontsize': 'x-large',
+          'figure.figsize': (15, 5),
+          'axes.labelsize': 'x-large',
+          'axes.titlesize': 'x-large',
+          'xtick.labelsize': 'x-large',
+          'ytick.labelsize': 'x-large'}
+pylab.rcParams.update(params)
 
 
 class SignalFiltering:
@@ -39,14 +48,13 @@ class SignalFiltering:
 
     def plot_bandpass_freqz(self, orders):
         plt.figure(1)
-        plt.clf()
         for order in orders:
             b, a = butter(order, [self.norm_low, self.norm_high], btype='band')
             w, h = freqz(b, a, worN=2000)
             plt.plot((self.fs * 0.5 / np.pi) * w, abs(h), label="order = %d" % order)
-        plt.xlabel('Frequency (Hz)')
-        plt.ylabel('Gain')
-        plt.grid(True)
+        plt.xlabel(r'Normalized Frequency ($\times$$\pi$ rad/sample)')
+        plt.ylabel('Magnitude (dB)')
+        plt.grid(False)
         plt.legend(loc='best')
         plt.show()
 
@@ -79,35 +87,53 @@ class SignalPreprocessing:
             plt.figure(1)
             filtering.plot_bandpass_freqz(orders=[3, 5, 6])
 
-        filtered_data = filtering.butter_bandpass_filter(signal=data[0, :], order=6)
+        self.filtered_data = filtering.butter_bandpass_filter(signal=data[0, :], order=6)
 
         if eval(config['plot']):
-            plt.figure(2, figsize=(12, 6), dpi=80, facecolor='w', edgecolor='k')
-            plt.plot(data[0, self.fs * 1: (self.fs * config['display_limit'])])
-            plt.plot(filtered_data[self.fs * 1: (self.fs * config['display_limit'])])
-            plt.legend(['raw', 'filtered'])
+            sample_raw = data[0, 0: (self.fs * config['display_limit'] + 1)]
+            sample_filtered = self.filtered_data[0: (self.fs * config['display_limit'] + 1)]
+            times = np.linspace(0, len(sample_raw) / self.fs, len(sample_raw))
 
-        differentiated_data = np.ediff1d(filtered_data)
+            plt.plot(times, sample_raw)
+            plt.plot(times, sample_filtered)
+            plt.ylabel('Voltage (mV)')
+            plt.xlabel('Time (s)')
+            plt.xticks(np.arange(0, config['display_limit'] + 1, 1))
+            plt.legend(['Original signal', 'Filtered signal'])
+
+        differentiated_data = np.ediff1d(self.filtered_data)
         squared_data = differentiated_data.T ** 2
         integrated_data = np.convolve(squared_data, np.ones(15))
 
         if eval(config['plot']):
+            sample_derivative = differentiated_data[0: (self.fs * config['display_limit'] + 1)]
+            sample_squared = squared_data[0: (self.fs * config['display_limit'] + 1)]
+            sample_integrated = integrated_data[0: (self.fs * config['display_limit'] + 1)]
             plt.figure(3, figsize=(22, 14), dpi=80, facecolor='w', edgecolor='k')
-            plt.subplot(4, 1, 1)
-            plt.plot(filtered_data[self.fs: (self.fs * config['display_limit'])])
-            plt.legend(['filtered'])
-            plt.subplot(4, 1, 2)
-            plt.plot(differentiated_data[self.fs: (self.fs * config['display_limit'])])
-            plt.legend(['derivative'])
-            plt.subplot(4, 1, 3)
-            plt.plot(squared_data[self.fs: (self.fs * config['display_limit'])])
-            plt.legend(['squared'])
-            plt.subplot(4, 1, 4)
-            plt.plot(integrated_data[self.fs: (self.fs * config['display_limit'])])
-            plt.legend(['integrative'])
+            plt.subplot(5, 1, 1)
+            plt.plot(times, sample_raw)
+            plt.xticks(np.arange(0, config['display_limit'] + 1, 1))
+            plt.legend(['Original'], loc='upper right')
+            plt.subplot(5, 1, 2)
+            plt.plot(times, sample_filtered)
+            plt.xticks(np.arange(0, config['display_limit'] + 1, 1))
+            plt.legend(['Filtering'], loc='upper right')
+            plt.subplot(5, 1, 3)
+            plt.plot(times, sample_derivative)
+            plt.xticks(np.arange(0, config['display_limit'] + 1, 1))
+            plt.legend(['Differentiation'], loc='upper right')
+            plt.subplot(5, 1, 4)
+            plt.plot(times, sample_squared)
+            plt.xticks(np.arange(0, config['display_limit'] + 1, 1))
+            plt.legend(['Squaring'], loc='upper right')
+            plt.subplot(5, 1, 5)
+            plt.plot(times, sample_integrated)
+            plt.xticks(np.arange(0, config['display_limit'] + 1, 1))
+            plt.legend(['Integration'], loc='upper right')
+            plt.xlabel('Time (s)')
             plt.show()
 
-        logging.info('Reprocessing finished')
+        logging.info('Preprocessing finished')
         return integrated_data
 
 

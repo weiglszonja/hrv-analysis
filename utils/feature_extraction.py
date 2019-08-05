@@ -5,7 +5,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from scipy import interpolate, signal
 
-CONFIG = os.path.join('config/analysis_config.json')
+CONFIG = os.path.join('utils/config/analysis_config.json')
 
 
 class TimeDomainMetrics:
@@ -30,7 +30,7 @@ class TimeDomainMetrics:
         return {'rmssd': np.sqrt(np.mean(np.square(np.diff(self.rr)))),
                 'sdrr': np.std(self.rr),
                 'nn50': np.sum(np.abs(np.diff(self.rr)) > 0.05 * self.fs) * 1,
-                'pnn50': 100 * (np.sum(np.abs(np.diff(self.rr)) > 0.05) * 1) / len(self.rr)}
+                'pnn50': 100 * (np.sum(np.abs(np.diff(self.rr)) > 0.05 * self.fs) * 1) / len(self.rr)}
 
 
 class FrequencyDomainMetrics:

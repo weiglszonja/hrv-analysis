@@ -27,7 +27,8 @@ class TimeDomainMetrics:
         fs: sampling frequency
         :return: dictionary of the calculated time-domain metrics
         '''
-        return {'rmssd': np.sqrt(np.mean(np.square(np.diff(self.rr)))),
+        return {'meanrr': np.mean(self.rr),
+                'rmssd': np.sqrt(np.mean(np.square(np.diff(self.rr)))),
                 'sdrr': np.std(self.rr),
                 'nn50': np.sum(np.abs(np.diff(self.rr)) > 0.05 * self.fs) * 1,
                 'pnn50': 100 * (np.sum(np.abs(np.diff(self.rr)) > 0.05 * self.fs) * 1) / len(self.rr)}

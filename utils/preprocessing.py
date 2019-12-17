@@ -15,12 +15,12 @@ mne.set_log_level('ERROR')
 
 CONFIG = os.path.join('utils/config/analysis_config.json')
 
-params = {'legend.fontsize': 'x-large',
+params = {'legend.fontsize': 'xx-large',
           'figure.figsize': (15, 5),
-          'axes.labelsize': 'x-large',
-          'axes.titlesize': 'x-large',
-          'xtick.labelsize': 'x-large',
-          'ytick.labelsize': 'x-large'}
+          'axes.labelsize': 'xx-large',
+          'axes.titlesize': 'xx-large',
+          'xtick.labelsize': 'xx-large',
+          'ytick.labelsize': 'xx-large'}
 pylab.rcParams.update(params)
 
 
@@ -80,6 +80,8 @@ class SignalPreprocessing:
 
     def _preprocess_data(self):
         data = self._read_data()
+        # convert to mV from V
+        data = data * 1000
         config = self._read_config()
 
         filtering = SignalFiltering(fs=self.fs, low=config['low_pass'], high=config['high_pass'])
@@ -99,7 +101,7 @@ class SignalPreprocessing:
             plt.ylabel('Voltage (mV)')
             plt.xlabel('Time (s)')
             plt.xticks(np.arange(0, config['display_limit'] + 1, 1))
-            plt.legend(['Original signal', 'Filtered signal'])
+            plt.legend(['Original signal', 'Filtered signal'], loc='upper right')
 
         differentiated_data = np.ediff1d(self.filtered_data)
         squared_data = differentiated_data.T ** 2
@@ -109,11 +111,13 @@ class SignalPreprocessing:
             sample_derivative = differentiated_data[0: (self.fs * config['display_limit'] + 1)]
             sample_squared = squared_data[0: (self.fs * config['display_limit'] + 1)]
             sample_integrated = integrated_data[0: (self.fs * config['display_limit'] + 1)]
-            plt.figure(3, figsize=(22, 14), dpi=80, facecolor='w', edgecolor='k')
+            plt.figure(3, figsize=(18,18), dpi=100, facecolor='w', edgecolor='k')
             plt.subplot(5, 1, 1)
             plt.plot(times, sample_raw)
+            plt.ylabel('Voltage (mV)')
+            plt.xlabel('Time (s)')
             plt.xticks(np.arange(0, config['display_limit'] + 1, 1))
-            plt.legend(['Original'], loc='upper right')
+            plt.legend(['Raw ECG signal'], loc='upper right')
             plt.subplot(5, 1, 2)
             plt.plot(times, sample_filtered)
             plt.xticks(np.arange(0, config['display_limit'] + 1, 1))
@@ -139,10 +143,12 @@ class SignalPreprocessing:
 
 class PeakDetection:
     '''
-    Detects peaks on preprocessed data based on Pan Tompkins algorithm and returns peak intervals in milliseconds.
+    Detects peaks on preprocessed data based on Pan Tompkins algorithm and
+    returns peak intervals in milliseconds.
 
     Reference:
-    J. Pan and W. J. Tompkins, "A Real-Time QRS Detection Algorithm,"  in IEEE Transactions on Biomedical Engineering,
+    J. Pan and W. J. Tompkins, "A Real-Time QRS Detection Algorithm,"
+    in IEEE Transactions on Biomedical Engineering,
      vol. BME-32, no. 3, pp. 230-236, March 1985. doi: 10.1109/TBME.1985.325532
     '''
 
@@ -241,24 +247,28 @@ class PeakDetection:
                 logging.info(f'No peak candidates were found in epoch {epoch_num}!')
 
             if eval(config['plot']):
-                plt.figure(figsize=(14, 6), dpi=80, facecolor='w', edgecolor='k')
+                plt.figure(figsize=(15, 5), dpi=100, facecolor='w', edgecolor='k')
                 plt.plot(normalized_epoch)
                 plt.plot(epoch_nn_peaks, normalized_epoch[epoch_nn_peaks], '*', markersize=12)
-                plt.xticks(np.arange(0, len(normalized_epoch), self.fs * 2))
-                plt.title('Detected peaks on preprocessed signal', fontsize=16)
-                plt.xlabel('Time (data samples)')
+                plt.xticks(np.arange(0, len(normalized_epoch)+1, self.fs * 5),
+                           labels=[0, 5, 10, 15, 20, 25, 30])
+                plt.xlabel('Time (s)')
                 plt.ylabel('Normalized value')
+                plt.legend(['Preprocessed signal', 'Detected peaks'], loc=1)
+                plt.title('Detected peaks on preprocessed signal', fontsize=16)
                 plt.show()
 
-                plt.figure(figsize=(14, 6), dpi=80, facecolor='w', edgecolor='k')
+                plt.figure(figsize=(15, 5), dpi=100, facecolor='w', edgecolor='k')
                 filt = - self.filtered_data[0: epoch_length]
                 normalized_filt = (filt - min(filt)) / (max(filt) - min(filt))
                 plt.plot(normalized_filt)
                 plt.plot(epoch_nn_peaks, normalized_epoch[epoch_nn_peaks], '*', markersize=12)
 
-                plt.xticks(np.arange(0, len(normalized_epoch), self.fs * 2))
-                plt.xlabel('Time (data samples)')
+                plt.xticks(np.arange(0, len(normalized_epoch)+1, self.fs * 5),
+                                     labels=[0, 5, 10, 15, 20, 25, 30])
+                plt.xlabel('Time (s)')
                 plt.ylabel('Normalized value')
+                plt.legend(['Raw signal', 'Detected peaks'], loc=1)
                 plt.title('Detected peaks on original signal', fontsize=16)
                 plt.show()
 

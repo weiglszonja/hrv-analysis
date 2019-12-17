@@ -2,8 +2,8 @@ import os
 
 import numpy as np
 import pandas as pd
+from astropy.timeseries import LombScargle
 from matplotlib import pyplot as plt
-from scipy import interpolate, signal
 
 CONFIG = os.path.join('utils/config/analysis_config.json')
 
@@ -29,9 +29,9 @@ class TimeDomainMetrics:
         '''
         return {'meanrr': np.mean(self.rr),
                 'rmssd': np.sqrt(np.mean(np.square(np.diff(self.rr)))),
-                'sdrr': np.std(self.rr),
-                'nn50': np.sum(np.abs(np.diff(self.rr)) > 0.05 * self.fs) * 1,
-                'pnn50': 100 * (np.sum(np.abs(np.diff(self.rr)) > 0.05 * self.fs) * 1) / len(self.rr)}
+                'sdrr': np.std(self.rr, ddof=1),
+                'nn50': np.sum(np.abs(np.diff(self.rr)) > 50),
+                'pnn50': 100 * (np.sum(np.abs(np.diff(self.rr)) > 50)) / len(self.rr)}
 
 
 class FrequencyDomainMetrics:
@@ -60,22 +60,9 @@ class FrequencyDomainMetrics:
 
         timestamps = np.cumsum(self.rr) / 1000
         timestamps = timestamps - timestamps[0]
-        # interpolation function
-        funct = interpolate.interp1d(x=timestamps, y=[rrs / 1000 for rrs in self.rr], kind='linear')
-        interpolated_timestamps = np.linspace(timestamps[0], timestamps[-1], num=timestamps[-1] * self.fs)
-        rr_interpolation = funct(interpolated_timestamps)
-        # compensate for DC
-        rr_interpolation = rr_interpolation - np.mean(rr_interpolation)
-        # compute PSD
-        freq, psd = signal.welch(x=rr_interpolation, fs=self.fs, window='hann', nfft=2 ** 15, nperseg=25600)
-
-        if eval(config['plot']):
-            plt.figure(1, figsize=(12, 8))
-            plt.plot(freq, psd)
-            plt.xlim([0.0, 1.0])
-            plt.xlabel('frequency [Hz]')
-            plt.ylabel('PSD [s2/ Hz]')
-            plt.show()
+        freq, psd = LombScargle(timestamps, self.rr, normalization='psd').autopower(
+            minimum_frequency=config['vlf_band'][0],
+            maximum_frequency=config['hf_band'][1])
 
         vlf_indexes = np.logical_and(freq >= config['vlf_band'][0], freq < config['vlf_band'][1])
         lf_indexes = np.logical_and(freq >= config['lf_band'][0], freq < config['lf_band'][1])
@@ -90,18 +77,17 @@ class FrequencyDomainMetrics:
         lfnu = (lf / (lf + hf)) * 100
         hfnu = (hf / (lf + hf)) * 100
 
-        frequency_band_index = [vlf_indexes, lf_indexes, hf_indexes]
-        label_list = ["VLF component", "LF component", "HF component"]
+        frequency_band_index = [lf_indexes, hf_indexes]
+        label_list = ["LF component", "HF component"]
         if eval(config['plot']):
             plt.figure(2, figsize=(12, 8))
-            plt.xlabel("Frequency (Hz)", fontsize=15)
-            plt.ylabel("PSD (s2/ Hz)", fontsize=15)
-
-            plt.title("FFT Spectrum : Welch's periodogram", fontsize=20)
+            plt.xlabel("Frequency (Hz)")
+            plt.ylabel("PSD (s2/ Hz)")
+            plt.title("FFT Spectrum : Lomb-Scargle's periodogram", fontsize=20)
             for band_index, label in zip(frequency_band_index, label_list):
                 plt.fill_between(freq[band_index], 0, psd[band_index] / (1000 * len(psd[band_index])), label=label)
-                plt.legend(prop={"size": 15}, loc="best")
-                plt.xlim(0, config['hf_band'][1])
+                plt.legend(prop={"size": 18}, loc="best")
+                plt.xlim(config['lf_band'][0], config['hf_band'][1])
 
             plt.show()
 
